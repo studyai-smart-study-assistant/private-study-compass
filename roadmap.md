@@ -12,8 +12,8 @@ Code lives in `study-ai-browser/`; CI workflows at repo root are path-filtered.
 - [x] Config: GN args templates, Chromium pin, app config, signing script (env secrets only)
 - [x] Custom Java extension-point sources (`src-custom/` → `//study_ai/browser`)
 - [x] Tests: patch engine unit tests, patches-on-mock-tree tests, config/workflow validators (40 tests, all passing)
-- [x] GitHub Actions: verify.yml (hosted) + build-apk.yml (self-hosted, signs via secrets)
+- [x] GitHub Actions: verify.yml (hosted, free) + build-apk.yml (GitHub-hosted larger runner, signs via secrets, publishes APK as GitHub Release asset — no Actions artifacts)
 - [x] License docs: LICENSE.md (BSD-3 + Apache 2.0), THIRD_PARTY_NOTICES.md
 - [x] Run all runnable tests locally; verified patch anchors against real Chromium 156 sources (manifest, BUILD.gn, template_url_prepopulate_data.cc)
-- [ ] APK generation — BLOCKED: requires the self-hosted build runner (docs/CI_CD.md); user provisions hardware
-- [ ] First real CI build + on-device smoke test — BLOCKED: same runner
+- [ ] APK generation — BLOCKED: user must create a GitHub-hosted larger runner (Settings → Actions → Runners, ≥32-core recommended, ≥12 h max run time) and enable pay-per-minute Actions billing (docs/CI_CD.md); the build is then one workflow_dispatch
+- [ ] First real CI build + on-device smoke test — BLOCKED: same larger-runner setup
