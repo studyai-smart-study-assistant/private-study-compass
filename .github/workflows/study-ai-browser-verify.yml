@@ -1,0 +1,57 @@
+# Study AI Browser — verification workflow.
+# Runs on a free hosted runner: unit tests, config validation, and secret-leak
+# scans. It does NOT build Chromium (see build-apk.yml / docs/CI_CD.md for the
+# self-hosted runner requirements).
+
+name: study-ai-browser verify
+
+on:
+  push:
+    paths:
+      - "study-ai-browser/**"
+      - ".github/workflows/study-ai-browser-verify.yml"
+  pull_request:
+    paths:
+      - "study-ai-browser/**"
+      - ".github/workflows/study-ai-browser-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Tests, configs, leak scan
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: study-ai-browser
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run project tests
+        run: ./tests/run_tests.sh
+
+      - name: Shell script sanity (bash -n)
+        run: |
+          for f in build/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Verify pinned Chromium version exists upstream
+        run: |
+          VERSION=$(python3 -c "import json;print(json.load(open('config/chromium_pin.json'))['chromium_version'])")
+          curl -fsSL "https://chromium.googlesource.com/chromium/src.git/info/refs?service=git-upload-pack" \
+            | grep -q "refs/tags/${VERSION}" \
+            || { echo "Pinned version ${VERSION} not found upstream"; exit 1; }
+
+      - name: Assert no signing material in the repository
+        run: |
+          if grep -rIlE "BEGIN (RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY|MII[A-Za-z0-9+/]{100,}" . ; then
+            echo "Found what looks like private key material in the repo"; exit 1
+          fi
