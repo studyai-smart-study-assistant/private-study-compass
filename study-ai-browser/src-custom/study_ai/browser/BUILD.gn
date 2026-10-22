@@ -1,0 +1,20 @@
+# Copyright 2026 Study AI Browser contributors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+# Copied into the Chromium tree as //study_ai/browser/BUILD.gn by the
+# extension-points patch. See study-ai-browser/patches/patch_04_extension_points.py
+
+import("//build/config/android/rules.gni")
+
+# Study AI extension point. Deliberately minimal: no network, no secrets.
+# Future phases (AI API, MCP browser agent) register implementations of
+# StudyAiAgentBridge at startup; nothing else in the browser depends on them.
+android_library("java") {
+  sources = [
+    "java/org/studyai/browser/StudyAiAgentBridge.java",
+    "java/org/studyai/browser/StudyAiBridgeRegistry.java",
+  ]
+  deps = [
+    "//base:base_java",
+  ]
+}
