@@ -4,7 +4,8 @@
 # found in the LICENSE file.
 #
 # Verifies that a machine can fetch and build Chromium for Study AI Browser.
-# Run on the self-hosted CI runner and on any new developer machine.
+# Run on the CI build runner (GitHub-hosted larger runner) and on any new
+# developer machine.
 # Usage: ./verify_environment.sh [--min-ram-gb 64] [--min-disk-gb 300]
 
 set -euo pipefail

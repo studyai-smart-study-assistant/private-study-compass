@@ -77,4 +77,5 @@ Phase-2 rules (enforced by review checklist in docs/PRIVACY.md):
   `autoninja chrome_public_apk`, artifact copying.
 * `build/sign_release.sh` — `apksigner` with env-provided credentials only.
 * Hosted CI verifies everything verifiable without the source checkout;
-  self-hosted CI produces and uploads real APKs (docs/CI_CD.md).
+  a GitHub-hosted larger runner builds the APKs and publishes them as
+  Release assets (docs/CI_CD.md).

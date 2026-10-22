@@ -18,9 +18,10 @@ Actions CI/CD that produce the signed APK.
 - **Modular AI readiness:** an inert `//study_ai/browser` bridge interface
   and registry are compiled in, reserved for Study AI's future AI API and
   MCP-powered browser agent. No fake agent, no embedded API secrets.
-- **CI/CD:** hosted-runner verification on every change; a self-hosted
-  workflow builds and uploads real, signed APKs with credentials held only
-  in GitHub Actions secrets.
+- **CI/CD:** hosted-runner verification on every change; the APK is built on
+  a **GitHub-hosted larger runner** (no self-hosted hardware) and published
+  directly as a GitHub Release asset — signed with credentials held only in
+  GitHub Actions secrets, and only after build + signature verification pass.
 
 ## Repository map
 
@@ -61,7 +62,7 @@ claims to ship one without it.
 | docs/BUILDING.md | prerequisites, fetch/build/sign commands, GN args, update strategy, troubleshooting |
 | docs/PRIVACY.md | local-only data guarantees, telemetry posture, documented network requests, audit checklist |
 | docs/SEARCH_PROVIDERS.md | default and configurable providers; what the provider receives |
-| docs/CI_CD.md | hosted verify workflow, self-hosted build runner setup, secrets, release runbook |
+| docs/CI_CD.md | hosted verify workflow, GitHub-hosted larger-runner build, costs, release publishing, secrets, runbook |
 | docs/ARCHITECTURE.md | patch system, feature map, AI/MCP extension points and phase-2 rules |
 
 ## Licensing

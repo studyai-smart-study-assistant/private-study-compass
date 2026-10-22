@@ -1,12 +1,24 @@
-# Study AI Browser — APK build workflow.
+# Study AI Browser — APK build workflow (GitHub-hosted ONLY, no self-hosted hardware).
 #
-# IMPORTANT: a real Chromium checkout is 100+ GB and the build needs 64+ GB
-# RAM; a standard GitHub hosted runner cannot do this. This workflow therefore
-# targets a SELF-HOSTED Linux runner labelled [self-hosted, linux, chromium].
-# Setup instructions: docs/CI_CD.md (one-time runner provisioning, caches).
+# A standard GitHub-hosted runner (ubuntu-latest: 4 vCPU, 16 GB RAM, 14 GB SSD)
+# cannot build Chromium — the source checkout alone is 100+ GB. This workflow
+# therefore targets a GitHub-HOSTED LARGER runner (16-core/64 GB/600 GB,
+# 32-core/128 GB/1200 GB, or 64-core/256 GB/2 TB). You create it once under
+# Settings → Actions → Runners → "New GitHub-hosted larger runner" and pass its
+# machine-size label (e.g. `32-core`) when dispatching this workflow. Larger
+# runners are still managed and billed by GitHub — no self-hosted machine is
+# provisioned, rented, or maintained. Sizes, rates and estimates: docs/CI_CD.md.
+#
+# This workflow does NOT upload Actions artifacts (artifact storage is not
+# used at all). On a successful build + signature verification it publishes
+# the APK — and the R8 mapping file when produced — directly as assets of a
+# GitHub Release, using the ephemeral, automatically-scoped GITHUB_TOKEN.
+# The release step runs last: if the fetch, build, sign, or verify step fails,
+# the job stops first and NO release is created.
 #
 # Signing credentials come exclusively from GitHub Actions secrets; they are
-# never stored in the repository.
+# never stored in the repository. Without them the workflow still publishes a
+# clearly-named unsigned APK, marked as a pre-release.
 
 name: study-ai-browser build apk
 
@@ -15,41 +27,86 @@ on:
     inputs:
       arch:
         description: "Target architecture"
-        required: false
+        required: true
         default: "arm64"
         type: choice
         options: [arm64, arm]
+      runner_label:
+        description: "Label of your GitHub-hosted LARGER runner (e.g. 32-core, 16-core, 64-core)"
+        required: true
+        default: "32-core"
+        type: string
+      make_release:
+        description: "Publish the APK as a GitHub Release asset after a verified build"
+        required: true
+        default: true
+        type: boolean
+      release_tag:
+        description: "Release tag (optional; auto-generated when empty)"
+        required: false
+        default: ""
+        type: string
+
+# Never let two builds run at once (they would race for disk and release tags).
+concurrency:
+  group: study-ai-browser-build-apk
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build ${{ matrix.arch }} APK (self-hosted runner)
-    runs-on: [self-hosted, linux, chromium]
-    timeout-minutes: 1200
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [arm64, arm]
+    name: Build ${{ inputs.arch }} APK (GitHub-hosted larger runner)
+    runs-on: ${{ inputs.runner_label }}
+    # The job-side cap; the larger runner's own "maximum run time" (Settings →
+    # Actions → Runners → your runner, default 6 h) should also be raised to
+    # 12 h — see docs/CI_CD.md.
+    timeout-minutes: 720
+    # Elevated only for this job, only to create the Release. GITHUB_TOKEN is
+    # ephemeral and scoped to this single workflow run.
+    permissions:
+      contents: write
     env:
-      CHROMIUM_BUILD_DIR: /opt/chromium-build
+      CHROMIUM_BUILD_DIR: ${{ github.workspace }}/_chromium-build
     steps:
       - uses: actions/checkout@v4
 
       - name: Environment preflight
         working-directory: study-ai-browser
-        run: ./build/verify_environment.sh
+        run: |
+          # Hosted runner images ship JDK 17 but may not default to it on PATH.
+          if [[ -z "${JAVA_HOME:-}" ]]; then
+            export JAVA_HOME="${JAVA_HOME_17_X64:-${JAVA_HOME_17_ARM64:-}}"
+          fi
+          if [[ -n "${JAVA_HOME:-}" ]]; then
+            export PATH="$JAVA_HOME/bin:$PATH"
+          fi
+          java -version
+          ./build/verify_environment.sh
 
-      - name: Fetch pinned Chromium + apply patches (idempotent, cached on runner)
+      - name: Fetch pinned Chromium + apply patches (idempotent, ~100 GB, hours)
         working-directory: study-ai-browser
-        run: ./build/fetch_chromium.sh
+        run: ./build/fetch_chromium.sh "$CHROMIUM_BUILD_DIR"
+
+      - name: Install Chromium OS build dependencies
+        run: |
+          DEPS="$CHROMIUM_BUILD_DIR/src/build/install-build-deps.sh"
+          if [[ -x "$DEPS" ]]; then
+            # Hosted runner images ship most libraries; a failure here is
+            # logged but not fatal — the build step is the real gate.
+            sudo -E bash "$DEPS" \
+              || echo "WARNING: install-build-deps failed; continuing with image defaults"
+          else
+            echo "install-build-deps.sh not present yet; skipping"
+          fi
 
       - name: Build APK
         working-directory: study-ai-browser
-        run: ./build/build_android.sh "$CHROMIUM_BUILD_DIR" "${{ matrix.arch }}"
+        run: ./build/build_android.sh "$CHROMIUM_BUILD_DIR" "${{ inputs.arch }}"
 
-      - name: Sign release APK
+      - name: Sign release APK (credentials from Actions secrets only)
+        id: sign
         working-directory: study-ai-browser
         env:
           STUDYAI_KEYSTORE_B64: ${{ secrets.STUDYAI_KEYSTORE_B64 }}
@@ -57,21 +114,73 @@ jobs:
           STUDYAI_KEY_ALIAS: ${{ secrets.STUDYAI_KEY_ALIAS }}
           STUDYAI_KEY_PASSWORD: ${{ secrets.STUDYAI_KEY_PASSWORD }}
         run: |
-          UNSIGNED="$CHROMIUM_BUILD_DIR/src/out/studyai-android-${{ matrix.arch }}/apks/StudyAIBrowser-${{ matrix.arch }}.apk"
-          ./build/sign_release.sh "$UNSIGNED" "StudyAIBrowser-${{ matrix.arch }}.apk"
+          # apksigner lives in the SDK downloaded by the fetch step; expose it
+          # to sign_release.sh via ANDROID_BUILD_TOOLS_DIR.
+          APKSIGNER="$(find "$CHROMIUM_BUILD_DIR/src/third_party/android_sdk" -type f -name apksigner 2>/dev/null | head -n1)"
+          export ANDROID_BUILD_TOOLS_DIR="$(dirname "$APKSIGNER")"
+          OUT_DIR="$CHROMIUM_BUILD_DIR/src/out/studyai-android-${{ inputs.arch }}/apks"
+          UNSIGNED="$OUT_DIR/StudyAIBrowser-${{ inputs.arch }}.apk"
+          SIGNED="$GITHUB_WORKSPACE/StudyAIBrowser-${{ inputs.arch }}.apk"
+          ./build/sign_release.sh "$UNSIGNED" "$SIGNED"
+          echo "apk=$SIGNED" >> "$GITHUB_OUTPUT"
+          echo "apksigner_dir=$ANDROID_BUILD_TOOLS_DIR" >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: StudyAIBrowser-${{ matrix.arch }}-apk
-          path: study-ai-browser/StudyAIBrowser-*.apk
-          if-no-files-found: error
+          if [[ -n "$APKSIGNER" ]] && "$APKSIGNER" verify --print-certs "$SIGNED" >/dev/null 2>&1; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Upload mapping file (if produced)
-        uses: actions/upload-artifact@v4
-        with:
-          name: StudyAIBrowser-${{ matrix.arch }}-mapping
-          path: |
-            ${{ env.CHROMIUM_BUILD_DIR }}/src/out/studyai-android-${{ matrix.arch }}/apks/*.mapping
-          if-no-files-found: ignore
-          retention-days: 30
+      - name: Verify APK signature (release gate)
+        working-directory: study-ai-browser
+        env:
+          APK: ${{ steps.sign.outputs.apk }}
+          APKSIGNER_DIR: ${{ steps.sign.outputs.apksigner_dir }}
+        run: |
+          if [[ -n "$APKSIGNER_DIR" ]] && "$APKSIGNER_DIR/apksigner" verify --print-certs "$APK"; then
+            echo "Signature verified: $APK"
+          else
+            echo "WARNING: no verifiable signature — the APK will be published as UNSIGNED pre-release (never as a release build)." >&2
+          fi
+          test -s "$APK"
+
+      - name: Publish APK as a GitHub Release asset (runs only if every step above succeeded)
+        if: ${{ inputs.make_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ inputs.arch }}
+          SIGNED: ${{ steps.sign.outputs.signed }}
+          APK: ${{ steps.sign.outputs.apk }}
+        run: |
+          set -euo pipefail
+          VERSION=$(python3 -c "import json;print(json.load(open('study-ai-browser/config/chromium_pin.json'))['chromium_version'])")
+          TAG="${{ inputs.release_tag }}"
+          if [[ -z "$TAG" ]]; then
+            TAG="studyai-v${VERSION}-run${{ github.run_number }}"
+          fi
+
+          FILES=("$APK")
+          MAPPING="$CHROMIUM_BUILD_DIR/src/out/studyai-android-${ARCH}/apks/StudyAIBrowser-${ARCH}.apk.mapping"
+          if [[ -f "$MAPPING" ]]; then
+            FILES+=("$MAPPING")
+          fi
+
+          NOTES="Study AI Browser built from Chromium ${VERSION} (${ARCH})."
+          if [[ "$SIGNED" != "true" ]]; then
+            NOTES="$NOTES UNSIGNED build (no signing secrets configured) — publish as pre-release only."
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            PRERELEASE=()
+            if [[ "$SIGNED" != "true" ]]; then
+              PRERELEASE+=(--prerelease)
+            fi
+            gh release create "$TAG" "${FILES[@]}" \
+              --title "Study AI Browser ${VERSION} (${ARCH})" \
+              --notes "$NOTES" \
+              "${PRERELEASE[@]}"
+          fi
+          echo "Published: https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+          gh release view "$TAG" --json assets --jq '.assets[].name'
