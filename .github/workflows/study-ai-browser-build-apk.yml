@@ -74,9 +74,11 @@ jobs:
 
       - name: Environment preflight
         working-directory: study-ai-browser
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 || env.JAVA_HOME_17_ARM64 }}
         run: |
+          # Hosted runner images ship JDK 17 but may not default to it on PATH.
+          if [[ -z "${JAVA_HOME:-}" ]]; then
+            export JAVA_HOME="${JAVA_HOME_17_X64:-${JAVA_HOME_17_ARM64:-}}"
+          fi
           if [[ -n "${JAVA_HOME:-}" ]]; then
             export PATH="$JAVA_HOME/bin:$PATH"
           fi
@@ -111,16 +113,19 @@ jobs:
           STUDYAI_KEYSTORE_PASSWORD: ${{ secrets.STUDYAI_KEYSTORE_PASSWORD }}
           STUDYAI_KEY_ALIAS: ${{ secrets.STUDYAI_KEY_ALIAS }}
           STUDYAI_KEY_PASSWORD: ${{ secrets.STUDYAI_KEY_PASSWORD }}
-          ANDROID_BUILD_TOOLS_DIR: ""
         run: |
+          # apksigner lives in the SDK downloaded by the fetch step; expose it
+          # to sign_release.sh via ANDROID_BUILD_TOOLS_DIR.
+          APKSIGNER="$(find "$CHROMIUM_BUILD_DIR/src/third_party/android_sdk" -type f -name apksigner 2>/dev/null | head -n1)"
+          export ANDROID_BUILD_TOOLS_DIR="$(dirname "$APKSIGNER")"
           OUT_DIR="$CHROMIUM_BUILD_DIR/src/out/studyai-android-${{ inputs.arch }}/apks"
           UNSIGNED="$OUT_DIR/StudyAIBrowser-${{ inputs.arch }}.apk"
           SIGNED="$GITHUB_WORKSPACE/StudyAIBrowser-${{ inputs.arch }}.apk"
           ./build/sign_release.sh "$UNSIGNED" "$SIGNED"
           echo "apk=$SIGNED" >> "$GITHUB_OUTPUT"
+          echo "apksigner_dir=$ANDROID_BUILD_TOOLS_DIR" >> "$GITHUB_OUTPUT"
 
-          APKSIGNER="$(find "$CHROMIUM_BUILD_DIR/src/third_party/android_sdk" -type f -name apksigner 2>/dev/null | head -n1)"
-          if [[ -n "$APKSIGNER" && "$APKSIGNER" verify --print-certs "$SIGNED" >/dev/null 2>&1 ]]; then
+          if [[ -n "$APKSIGNER" ]] && "$APKSIGNER" verify --print-certs "$SIGNED" >/dev/null 2>&1; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
@@ -128,10 +133,11 @@ jobs:
 
       - name: Verify APK signature (release gate)
         working-directory: study-ai-browser
+        env:
+          APK: ${{ steps.sign.outputs.apk }}
+          APKSIGNER_DIR: ${{ steps.sign.outputs.apksigner_dir }}
         run: |
-          APK="${{ steps.sign.outputs.apk }}"
-          APKSIGNER="$(find "$CHROMIUM_BUILD_DIR/src/third_party/android_sdk" -type f -name apksigner 2>/dev/null | head -n1)"
-          if [[ -n "$APKSIGNER" && "$APKSIGNER" verify --print-certs "$APK" ]]; then
+          if [[ -n "$APKSIGNER_DIR" ]] && "$APKSIGNER_DIR/apksigner" verify --print-certs "$APK"; then
             echo "Signature verified: $APK"
           else
             echo "WARNING: no verifiable signature — the APK will be published as UNSIGNED pre-release (never as a release build)." >&2
