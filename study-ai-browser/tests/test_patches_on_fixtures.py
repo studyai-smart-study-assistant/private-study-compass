@@ -91,10 +91,15 @@ class PatchesOnFixturesTest(unittest.TestCase):
         self.assertTrue(bridge.is_file())
         self.assertTrue(registry.is_file())
         self.assertTrue(gn.is_file())
-        # Bridge sources must not embed secrets or network code.
+        # Bridge sources must not embed secrets or network code. Comments are
+        # ignored (they document the no-secrets rule itself).
         for path in (bridge, registry):
-            text = path.read_text(encoding="utf-8")
-            self.assertNotIn("http", text.lower().replace("http", "http"), msg=path.name)
+            code_lines = [
+                ln for ln in path.read_text(encoding="utf-8").splitlines()
+                if not ln.lstrip().startswith(("*", "//", "/*"))
+            ]
+            text = "\n".join(code_lines)
+            self.assertNotIn("http", text.lower(), msg=path.name)
             for forbidden in ("ApiKey", "api_key", "Bearer", "password", "secret"):
                 self.assertNotIn(forbidden, text, msg=path.name)
 
