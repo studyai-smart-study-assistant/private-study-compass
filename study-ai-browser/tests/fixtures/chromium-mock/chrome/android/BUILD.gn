@@ -4,14 +4,14 @@
 
 android_library("chrome_java") {
   deps = [
-    ":base_module_java",
-    ":chrome_app_java_resources",
-    "$google_play_services_package:google_play_services_auth_base_java",
-    "//base:content_uri_utils_java",
-    "//cc:cc_java",
-    "//chrome/android/features/keyboard_accessory:public_java",
-    "//chrome/browser/accessibility/hierarchysnapshotter/android:java",
-    "//chrome/browser/android/browserservices/intents:java",
-    "//chrome/browser/android/browserservices/metrics:java",
+      ":base_module_java",
+      ":chrome_app_java_resources",
+      "$google_play_services_package:google_play_services_auth_base_java",
+      "//base:content_uri_utils_java",
+      "//cc:cc_java",
+      "//chrome/android/features/keyboard_accessory:public_java",
+      "//chrome/browser/accessibility/hierarchysnapshotter/android:java",
+      "//chrome/browser/android/browserservices/intents:java",
+      "//chrome/browser/android/browserservices/metrics:java",
   ]
 }
