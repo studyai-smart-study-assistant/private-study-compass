@@ -1,0 +1,36 @@
+# Copyright 2026 Study AI Browser contributors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# GN args for the Study AI Browser arm32 release APK.
+# Identical to android_arm64.gni except target_cpu; keep the two files in sync
+# (tests/test_configs.py asserts everything except target_cpu matches).
+
+target_os = "android"
+target_cpu = "arm"
+
+# Release build. is_official_build=true gives release optimization and the
+# stable package name handling; combined with is_chrome_branded=false it is
+# the standard configuration for Chromium forks.
+is_debug = false
+is_official_build = true
+is_chrome_branded = false
+
+# No Google API keys are embedded: UMA, crash upload, and other keyed
+# Google services are compiled out or disabled. See docs/PRIVACY.md.
+use_official_google_api_keys = false
+
+# Application identity (matches config/app_config.json).
+chrome_public_manifest_package = "com.studyai.browser"
+
+# Privacy hardening (docs/PRIVACY.md):
+disable_fieldtrial_testing_config = true
+
+# Build performance: no PGO, thin symbols. Raise symbol_level when producing
+# a debuggable build for triage.
+chrome_pgo_phase = 0
+symbol_level = 1
+v8_symbol_level = 0
+
+# Release channel metadata used by the manifest template.
+android_channel = "default"
