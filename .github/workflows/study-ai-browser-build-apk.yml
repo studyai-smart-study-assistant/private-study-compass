@@ -1,0 +1,77 @@
+# Study AI Browser — APK build workflow.
+#
+# IMPORTANT: a real Chromium checkout is 100+ GB and the build needs 64+ GB
+# RAM; a standard GitHub hosted runner cannot do this. This workflow therefore
+# targets a SELF-HOSTED Linux runner labelled [self-hosted, linux, chromium].
+# Setup instructions: docs/CI_CD.md (one-time runner provisioning, caches).
+#
+# Signing credentials come exclusively from GitHub Actions secrets; they are
+# never stored in the repository.
+
+name: study-ai-browser build apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "Target architecture"
+        required: false
+        default: "arm64"
+        type: choice
+        options: [arm64, arm]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }} APK (self-hosted runner)
+    runs-on: [self-hosted, linux, chromium]
+    timeout-minutes: 1200
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, arm]
+    env:
+      CHROMIUM_BUILD_DIR: /opt/chromium-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment preflight
+        working-directory: study-ai-browser
+        run: ./build/verify_environment.sh
+
+      - name: Fetch pinned Chromium + apply patches (idempotent, cached on runner)
+        working-directory: study-ai-browser
+        run: ./build/fetch_chromium.sh
+
+      - name: Build APK
+        working-directory: study-ai-browser
+        run: ./build/build_android.sh "$CHROMIUM_BUILD_DIR" "${{ matrix.arch }}"
+
+      - name: Sign release APK
+        working-directory: study-ai-browser
+        env:
+          STUDYAI_KEYSTORE_B64: ${{ secrets.STUDYAI_KEYSTORE_B64 }}
+          STUDYAI_KEYSTORE_PASSWORD: ${{ secrets.STUDYAI_KEYSTORE_PASSWORD }}
+          STUDYAI_KEY_ALIAS: ${{ secrets.STUDYAI_KEY_ALIAS }}
+          STUDYAI_KEY_PASSWORD: ${{ secrets.STUDYAI_KEY_PASSWORD }}
+        run: |
+          UNSIGNED="$CHROMIUM_BUILD_DIR/src/out/studyai-android-${{ matrix.arch }}/apks/StudyAIBrowser-${{ matrix.arch }}.apk"
+          ./build/sign_release.sh "$UNSIGNED" "StudyAIBrowser-${{ matrix.arch }}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudyAIBrowser-${{ matrix.arch }}-apk
+          path: study-ai-browser/StudyAIBrowser-*.apk
+          if-no-files-found: error
+
+      - name: Upload mapping file (if produced)
+        uses: actions/upload-artifact@v4
+        with:
+          name: StudyAIBrowser-${{ matrix.arch }}-mapping
+          path: |
+            ${{ env.CHROMIUM_BUILD_DIR }}/src/out/studyai-android-${{ matrix.arch }}/apks/*.mapping
+          if-no-files-found: ignore
+          retention-days: 30
