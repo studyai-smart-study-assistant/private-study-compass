@@ -78,21 +78,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Study AI Browser — Chromium Android Project" },
+      {
+        name: "description",
+        content:
+          "Source-of-truth repository for the Study AI Browser Android app, built from pinned Chromium source with local-first privacy.",
+      },
+      { property: "og:title", content: "Study AI Browser — Chromium Android Project" },
+      {
+        property: "og:description",
+        content:
+          "Source-of-truth repository for the Study AI Browser Android app, built from pinned Chromium source with local-first privacy.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
   }),
   shellComponent: RootShell,
