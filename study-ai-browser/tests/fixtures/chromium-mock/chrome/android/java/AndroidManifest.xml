@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mock fragment of chrome/android/java/AndroidManifest.xml (Chromium
+     156.0.8078.47) used by the patch tests. Contains only the lines the
+     Study AI Browser patches match against. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="{{ manifest_package }}">
+
+    <application
+        android:name="org.chromium.chrome.browser.ChromeApplication"
+        android:icon="@drawable/ic_launcher"
+        android:label="{% block application_label %}@string/app_name{% endblock %}"
+        {% if backup_key is defined %}
+        android:allowBackup="true"
+        android:backupAgent="org.chromium.chrome.browser.backup.ChromeBackupAgent"
+        android:fullBackupOnly="false"
+        {% else %}
+        android:allowBackup="false"
+        {% endif %}>
+    </application>
+</manifest>

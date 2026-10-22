@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mock fragment of chrome/android/java/strings/android_chrome_strings.grd
+     (Chromium 156.0.8078.47) used by the patch tests. -->
+<grit-part>
+  <message name="IDS_APP_NAME" desc="The application name." translateable="false">
+    Chrome
+  </message>
+</grit-part>
