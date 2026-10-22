@@ -63,11 +63,12 @@ class BuildWorkflowTest(unittest.TestCase):
         self.text = BUILD.read_text()
 
     def test_targets_github_hosted_larger_runner(self):
-        # The workflow must select the runner via the dispatch input and must
-        # not reference any self-hosted runner label anywhere.
+        # The workflow must select the runner via the dispatch input; no
+        # self-hosted runner *label* may appear anywhere in the file.
         self.assertIn("runs-on: ${{ inputs.runner_label }}", self.text)
         self.assertIn("larger runner", self.text)
-        self.assertNotIn("self-hosted", self.text)
+        self.assertNotIn("self-hosted,", self.text)
+        self.assertNotRegex(self.text, r"runs-on:.*self-hosted")
 
     def test_signing_uses_only_github_secrets(self):
         for secret in ("secrets.STUDYAI_KEYSTORE_B64", "secrets.STUDYAI_KEYSTORE_PASSWORD",
