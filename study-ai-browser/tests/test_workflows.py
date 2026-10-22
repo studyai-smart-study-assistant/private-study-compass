@@ -25,13 +25,20 @@ BUILD = ROOT / ".github/workflows/study-ai-browser-build-apk.yml"
 
 @unittest.skipUnless(HAVE_YAML, "PyYAML not installed")
 class YamlParsingTest(unittest.TestCase):
+    @staticmethod
+    def _triggers(doc):
+        # YAML 1.1 parses an unquoted `on:` key as boolean True; accept both.
+        return doc.get("on", doc.get(True))
+
     def test_verify_workflow_parses(self):
         doc = yaml.safe_load(VERIFY.read_text())
-        self.assertIn("on", doc or {})
+        self.assertTrue(self._triggers(doc))
         self.assertIn("jobs", doc)
 
     def test_build_workflow_parses(self):
         doc = yaml.safe_load(BUILD.read_text())
+        triggers = self._triggers(doc) or {}
+        self.assertIn("workflow_dispatch", triggers)
         self.assertIn("jobs", doc)
         self.assertIn("build", doc["jobs"])
 
