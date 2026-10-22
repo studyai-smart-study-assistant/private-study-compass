@@ -4,7 +4,7 @@ Chromium-based Android browser (pin: Chromium 156.0.8078.47, arm64+arm).
 Code lives in `study-ai-browser/`; CI workflows at repo root are path-filtered.
 
 ## Tasks
-- [x] Feasibility check: sandbox cannot build Chromium (32GB scratch, 32GB RAM, 10-min cmd cap); build happens in CI on self-hosted runner
+- [x] Feasibility check: sandbox cannot build Chromium (32GB scratch, 32GB RAM, 10-min cmd cap); build happens in CI on a GitHub-hosted larger runner
 - [x] Branding assets (app icon, launcher set, adaptive icons) in `study-ai-browser/branding/`
 - [x] Core docs: README.md, BUILDING.md, PRIVACY.md, SEARCH_PROVIDERS.md, CI_CD.md, ARCHITECTURE.md
 - [x] Build scripts: verify_environment / fetch_chromium / build_android / sign_release + patch engine (`build/apply_patches.py`)

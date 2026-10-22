@@ -55,9 +55,12 @@ class BuildWorkflowTest(unittest.TestCase):
     def setUp(self):
         self.text = BUILD.read_text()
 
-    def test_targets_self_hosted_runner_with_chromium_label(self):
-        self.assertIn("self-hosted", self.text)
-        self.assertIn("chromium", self.text)
+    def test_targets_github_hosted_larger_runner(self):
+        # The workflow must select the runner via the dispatch input and must
+        # not reference any self-hosted runner label anywhere.
+        self.assertIn("runs-on: ${{ inputs.runner_label }}", self.text)
+        self.assertIn("larger runner", self.text)
+        self.assertNotIn("self-hosted", self.text)
 
     def test_signing_uses_only_github_secrets(self):
         for secret in ("secrets.STUDYAI_KEYSTORE_B64", "secrets.STUDYAI_KEYSTORE_PASSWORD",
@@ -66,11 +69,28 @@ class BuildWorkflowTest(unittest.TestCase):
         # No literal credential material may appear in the workflow.
         self.assertNotRegex(self.text, r"keystore-.*==")
 
-    def test_uploads_apk_artifact(self):
-        self.assertIn("upload-artifact", self.text)
-        self.assertIn("StudyAIBrowser-", self.text)
+    def test_no_actions_artifact_uploads(self):
+        # Artifact storage is not used: quota-safe by design.
+        self.assertNotIn("upload-artifact", self.text)
 
-    def test_both_architectures_built(self):
+    def test_publishes_release_assets_with_scoped_github_token(self):
+        self.assertIn("gh release create", self.text)
+        self.assertIn("GH_TOKEN: ${{ github.token }}", self.text)
+        self.assertIn("contents: write", self.text)
+
+    def test_release_only_after_build_sign_and_verify(self):
+        # The publish step must come after build/sign/verify and must not be
+        # forced to run when the job fails.
+        sign_pos = self.text.index("Sign release APK")
+        verify_pos = self.text.index("Verify APK signature")
+        publish_pos = self.text.index("Publish APK as a GitHub Release asset")
+        self.assertLess(verify_pos, publish_pos)
+        self.assertLess(sign_pos, publish_pos)
+        publish_block = self.text[publish_pos:publish_pos + 400]
+        self.assertNotIn("if: always()", publish_block)
+        self.assertNotIn("continue-on-error", publish_block)
+
+    def test_both_architectures_selectable(self):
         self.assertIn("arm64", self.text)
         self.assertIn("arm", self.text)
 
