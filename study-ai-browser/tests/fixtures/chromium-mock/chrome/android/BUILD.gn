@@ -1,5 +1,6 @@
 # Mock fragment of chrome/android/BUILD.gn (Chromium 156.0.8078.47) used by
 # the patch tests: the chrome_java deps list around the verified anchor.
+# Indentation matches the real file (6-space dep entries).
 
 android_library("chrome_java") {
   deps = [
